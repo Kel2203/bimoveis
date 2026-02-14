@@ -1,0 +1,30 @@
+{
+  "name": "bmoveis",
+  "version": "1.0.0",
+  "description": "meu bot de busca por oportunidades de imoveis",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kel2203/bmoveis.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Kel2203/bmoveis/issues"
+  },
+  "homepage": "https://github.com/Kel2203/bmoveis#readme",
+  "dependencies": {
+    "axios": "^1.13.5",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "puppeteer": "^24.37.3",
+    "sqlite3": "^5.1.7"
+  }
+}
