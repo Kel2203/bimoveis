@@ -1,22 +1,93 @@
-function calculateScore(imovel) {
-  let score = 0;
+function calcularPontuacao(imovel) {
+  let pontos = 0;
 
-  const precoM2 = imovel.preco / imovel.area;
+  const titulo = (imovel.titulo || "").toLowerCase();
+  const descricao = (imovel.descricao || "").toLowerCase();
+  const endereco = (imovel.endereco || "").toLowerCase();
 
-  if (precoM2 < 5000) score += 30;
-  else if (precoM2 < 6000) score += 20;
-  else score += 10;
+  // 💰 Preço
+  if (imovel.preco <= 300000) pontos += 3;
+  if (imovel.preco <= 270000) pontos += 1; // super oportunidade
 
-  if (imovel.descricao.includes("novo")) score += 25;
-  if (imovel.descricao.includes("seminovo")) score += 15;
+  // 🛏 Quartos
+  if (imovel.quartos >= 2) pontos += 2;
+  if (imovel.quartos >= 3) pontos += 1;
 
-  if (imovel.condominio && imovel.condominio < 400) score += 20;
+  // 📐 Área
+  if (imovel.area >= 40) pontos += 2;
+  if (imovel.area >= 45) pontos += 1;
+  if (imovel.area >= 50) pontos += 2;
 
-  if (imovel.regiao.includes("Ipiranga")) score += 25;
-  if (imovel.regiao.includes("Socorro")) score += 20;
-  if (imovel.regiao.includes("Jaraguá")) score += 15;
+  // 🌇 Varanda
+  if (descricao.includes("varanda")) pontos += 2;
 
-  return score;
+  // 🛡 Portaria 24h
+  if (
+    descricao.includes("portaria 24") ||
+    descricao.includes("portaria 24h")
+  ) pontos += 2;
+
+  // 📍 Bairros estratégicos (custo-benefício SP)
+  const bairrosBons = [
+    "ipiranga",
+    "mooca",
+    "vila prudente",
+    "saúde",
+    "santo amaro",
+    "tatuapé",
+    "vila mariana",
+    "cambuci",
+    "sacomã",
+    "vila gumercindo",
+    "indianópolis",
+    "vila clementino",
+    "vila mascote",
+    "vila andrade",
+    "vila do sul",
+    "vila guarani",
+    "vila santa catarina",
+    "vila das mercês",
+    "vila mariana",
+    "vila olímpia",
+    "vila madalena",
+    "vila leopoldina",
+    "vila romana",
+    "vila madalena",
+    "interlagos",
+    "vila carrão",
+    "vila formosa",
+    "vila matilde",
+    "vila clementino"
+  ];
+
+  if (bairrosBons.some(b => endereco.includes(b)|| titulo.includes(b)))
+    pontos += 3;
+
+  // ❌ Penalizações
+  const foraCapital = [
+    "suzano",
+    "cotia",
+    "mogi",
+    "salto",
+    "praia grande",
+    "jundiaí",
+    "guarulhos",
+    "osasco",
+    "santo andré",
+    "são bernardo",
+    "taboão da serra",
+    "mauá",
+    "carapicuíba",
+    "franco da rocha"
+  ];
+
+  if (foraCapital.some(c => endereco.includes(c)))
+    pontos -= 5;
+
+  if (titulo.includes("casa") || titulo.includes("terreno"))
+    pontos -= 5;
+
+  return pontos;
 }
 
-module.exports = { calculateScore };
+module.exports = { calcularPontuacao };
