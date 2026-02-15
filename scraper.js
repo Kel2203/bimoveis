@@ -3,7 +3,6 @@ const fs = require("fs");
 
 async function launchBrowserWithFallback() {
   const baseOptions = { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] };
-  console.log("[puppeteer-debug] baseOptions:", baseOptions);
   // Sanitize and resolve env vars that may point to install commands or cache dirs.
   const findExecutableInDir = (dir, depth = 0) => {
     if (depth > 5) return null;
@@ -60,8 +59,6 @@ async function launchBrowserWithFallback() {
 
   resolveEnvExecutable("PUPPETEER_EXECUTABLE_PATH");
   resolveEnvExecutable("CHROME_PATH");
-  console.log("[puppeteer-debug] env PUPPETEER_EXECUTABLE_PATH=", process.env.PUPPETEER_EXECUTABLE_PATH);
-  console.log("[puppeteer-debug] env CHROME_PATH=", process.env.CHROME_PATH);
   // Try to proactively find the downloaded chrome/chromium binary in common
   // puppeteer cache locations and use it as `executablePath` so Puppeteer
   // doesn't try to resolve a directory path as an executable.
@@ -74,10 +71,8 @@ async function launchBrowserWithFallback() {
       "/home/node/.cache/puppeteer"
     ].filter(Boolean);
 
-    console.log("[puppeteer-debug] cacheCandidates:", cacheCandidates);
     for (const dir of cacheCandidates) {
       try {
-        console.log("[puppeteer-debug] testing cache candidate:", dir);
         if (!fs.existsSync(dir)) continue;
         const walk = (d, depth = 0) => {
           if (depth > 6) return null;
@@ -101,10 +96,8 @@ async function launchBrowserWithFallback() {
           return null;
         };
         const found = walk(dir);
-        console.log("[puppeteer-debug] found in dir:", dir, found);
         if (found) return found;
       } catch (e) {
-        console.log("[puppeteer-debug] error testing dir:", dir, e && e.message);
         // ignore
       }
     }
@@ -113,15 +106,11 @@ async function launchBrowserWithFallback() {
 
   const foundBinary = findChromiumBinary();
   try {
-    console.log("[puppeteer-debug] foundBinary=", foundBinary);
     if (foundBinary) {
-      console.log("[puppeteer-debug] launching with executablePath:", foundBinary);
       return await puppeteer.launch({ ...baseOptions, executablePath: foundBinary });
     }
-    console.log("[puppeteer-debug] launching default puppeteer");
     return await puppeteer.launch(baseOptions);
   } catch (err) {
-    console.error("[puppeteer-debug] puppeteer.launch failed:", err && err.stack || err);
     const candidates = [
       process.env.CHROME_PATH,
       process.env.PUPPETEER_EXECUTABLE_PATH,
