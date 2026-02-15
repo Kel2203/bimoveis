@@ -1,10 +1,36 @@
 const puppeteer = require("puppeteer");
+const fs = require("fs");
+
+async function launchBrowserWithFallback() {
+  const baseOptions = { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] };
+  try {
+    return await puppeteer.launch(baseOptions);
+  } catch (err) {
+    const candidates = [
+      process.env.CHROME_PATH,
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+      "/usr/bin/chromium-browser",
+      "/usr/bin/chromium",
+      "/usr/bin/google-chrome-stable",
+      "/snap/bin/chromium"
+    ].filter(Boolean);
+
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) {
+          return await puppeteer.launch({ ...baseOptions, executablePath: p });
+        }
+      } catch (e) {
+        // ignore and try next
+      }
+    }
+
+    throw err;
+  }
+}
 
 async function buscarImoveis() {
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
+  const browser = await launchBrowserWithFallback();
 
   const pageLista = await browser.newPage();
 
