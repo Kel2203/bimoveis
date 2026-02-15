@@ -2,7 +2,7 @@ const cron = require("node-cron");
 const db = require("./database");
 const { buscarImoveis } = require("./scraper");
 const {calcularPontuacao } = require("./ranking");
-const { enviarMensagem } = require("../bot");
+const { enviarMensagem } = require("./bot");
 const { isValid } = require("./filter");
 
 
