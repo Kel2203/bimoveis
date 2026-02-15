@@ -87,8 +87,9 @@ function calcularPontuacao(imovel) {
   if (foraCapital.some(c => endereco.includes(c)))
     pontos -= 5;
 
-  if (titulo.includes("casa") || titulo.includes("terreno"))
-    pontos -= 5;
+  // penalidade menor para "casa" (nem todo 'casa' é irrelevante)
+  if (titulo.includes("terreno")) pontos -= 5;
+  if (titulo.includes("casa") && !titulo.includes("casa para renda")) pontos -= 2;
 
   return pontos;
 }

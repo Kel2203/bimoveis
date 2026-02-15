@@ -180,15 +180,35 @@ async function buscarImoveis() {
   try {
     browser = await launchBrowserWithFallback();
 
-    const pageLista = await browser.newPage();
-    await pageLista.setDefaultNavigationTimeout(120000);
-    await pageLista.setDefaultTimeout(120000);
+    const MAX_LINKS = Number(process.env.OLX_MAX_LINKS || 5);
 
-    console.log("🌐 Acessando OLX...");
-    await pageLista.goto(
-      "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000",
-      { waitUntil: "networkidle2", timeout: 120000 }
-    );
+    const pageLista = await browser.newPage();
+    await pageLista.setDefaultNavigationTimeout(60000);
+    await pageLista.setDefaultTimeout(60000);
+
+    // Otimizações: bloquear recursos pesados e setar user agent para acelerar carregamento
+    await pageLista.setUserAgent(process.env.USER_AGENT || "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await pageLista.setRequestInterception(true);
+    pageLista.on('request', req => {
+      const r = req.resourceType();
+      if (["image", "stylesheet", "font", "media", "manifest"].includes(r)) return req.abort();
+      req.continue();
+    });
+
+    console.log("🌐 Acessando OLX (lista) com otimizações...");
+
+    const listUrl = "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000";
+    let listLoaded = false;
+    for (let attempt = 1; attempt <= 2 && !listLoaded; attempt++) {
+      try {
+        await pageLista.goto(listUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+        listLoaded = true;
+      } catch (e) {
+        console.warn(`⚠️ Tentativa ${attempt} - falha ao carregar lista: ${e.message}`);
+        if (attempt === 2) throw e;
+        await new Promise(r => setTimeout(r, 3000 * attempt));
+      }
+    }
 
     // Espera anúncios aparecerem com timeout generoso
     console.log("⏳ Aguardando anúncios aparecerem...");
@@ -209,103 +229,66 @@ async function buscarImoveis() {
 
     const anuncios = [];
 
-    // Expandido para 20 links
-    const primeirosLinks = links.slice(0, 20);
+    // Limitar processados para evitar carga alta
+    const primeirosLinks = links.slice(0, MAX_LINKS);
 
     for (const link of primeirosLinks) {
       console.log(`\n  📄 Link ${primeirosLinks.indexOf(link) + 1}/${primeirosLinks.length}`);
       let page;
       try {
         page = await browser.newPage();
-        await page.setDefaultNavigationTimeout(30000);
-        await page.setDefaultTimeout(30000);
+        await page.setUserAgent(process.env.USER_AGENT || "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        await page.setDefaultNavigationTimeout(45000);
+        await page.setDefaultTimeout(45000);
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+          const r = req.resourceType();
+          if (["image", "stylesheet", "font", "media", "manifest"].includes(r)) return req.abort();
+          req.continue();
+        });
 
         console.log(`  ⏳ Navegando...`);
-        await page.goto(link, {
-          waitUntil: "networkidle2",
-          timeout: 30000
-        });
-        console.log(`  ✅ Página carregada`);
 
-        console.log(`  🔍 Extraindo dados...`);
-        let dados = null;
-        try {
-          dados = await page.evaluate(() => {
-            const titulo = document.querySelector("h1")?.innerText || "";
-            const textoPagina = document.body.innerText;
-
-            // PREÇO (ex: R$ 280.000 ou 280.000,00)
-            const precoMatch = textoPagina.match(/R\$\s*[\d.,]+/);
-            const precoStr = precoMatch ? precoMatch[0] : "";
-            const preco = precoStr ? Number(precoStr.replace(/\D/g, "")) : 0;
-
-            // ÁREA (ex: 42 m² ou 42m²)
-            const areaMatch = textoPagina.match(/(\d+(?:[.,]\d+)?)\s*m²/);
-            const area = areaMatch ? parseFloat(areaMatch[1].replace(",", ".")) : 0;
-
-            // QUARTOS (ex: 2 quartos, 2 quarto, 2q, 3 suítes, 2 dormitórios)
-            const quartosMatch = textoPagina.match(/(\d+)\s*(?:quarto|suíte|suite|dormitório|dorm|q)\s*(?:s)?/i);
-            const quartos = quartosMatch ? Number(quartosMatch[1]) : 0;
-
-            // ENDEREÇO - tenta múltiplos padrões
-            let endereco = "";
-            
-            // Procura por padrão "Bairro, São Paulo"
-            const enderecoMatch = textoPagina.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
-            if (enderecoMatch) {
-              endereco = enderecoMatch[1].trim();
-            } else {
-              // Alternativa: procura qualquer menção a bairros conhecidos
-              const bairrosComuns = [
-                "Ipiranga", "Mooca", "Vila Prudente", "Saúde", "Santo Amaro", 
-                "Tatuapé", "Vila Mariana", "Lapa", "Liberdade", "Cambuci",
-                "Sacomã", "Indianópolis", "Vila Clementino", "Vila Mascote",
-                "Interlagos", "Vila Carrão", "Vila Formosa", "Vila Matilde",
-                "Vila Olímpia", "Vila Madalena", "Vila Leopoldina", "Vila Romana",
-                "Tatuíba", "Bosque da Saúde", "Consolação", "Bela Vista", "Centro",
-                "Belém", "Brás", "Água Branca", "Pompéia", "Brooklin Paulista",
-                "Jardim Paulista", "Itaim Bibi", "Vila Clementino", "Cursino"
-              ];
-              for (const bairro of bairrosComuns) {
-                if (textoPagina.toLowerCase().includes(bairro.toLowerCase())) {
-                  endereco = bairro;
-                  break;
+        let success = false;
+        for (let attempt = 1; attempt <= 2 && !success; attempt++) {
+          try {
+            await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 45000 });
+            const dados = await page.evaluate(() => {
+                const tituloEl = document.querySelector("h1");
+                let titulo = tituloEl?.innerText || "";
+                if (!titulo) {
+                  const og = document.querySelector('meta[property="og:title"]') || document.querySelector('meta[name="title"]');
+                  titulo = og?.getAttribute('content') || document.title || "";
                 }
-              }
-            }
+              const textoPagina = document.body.innerText || '';
+              const precoMatch = textoPagina.match(/R\$\s*[\d.,]+/);
+              const precoStr = precoMatch ? precoMatch[0] : '';
+              const preco = precoStr ? Number(precoStr.replace(/\D/g, '')) : 0;
+              const areaMatch = textoPagina.match(/(\d+(?:[.,]\d+)?)\s*m²/);
+              const area = areaMatch ? parseFloat(areaMatch[1].replace(',', '.')) : 0;
+              const quartosMatch = textoPagina.match(/(\d+)\s*(?:quarto|dormitório|dorm|suíte|q)\s*(?:s)?/i);
+              const quartos = quartosMatch ? Number(quartosMatch[1]) : 0;
+              let endereco = '';
+              const enderecoMatch = textoPagina.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
+              if (enderecoMatch) endereco = enderecoMatch[1].trim();
+              return { titulo: titulo.trim(), preco, area, quartos, endereco, link: location.href };
+            });
 
-            return {
-              titulo: titulo.trim(),
-              preco,
-              area,
-              quartos,
-              endereco,
-              link: location.href
-            };
-          });
-        } catch (evalErr) {
-          console.error(`    ⛔ Erro ao extrair: ${evalErr.message}`);
-          dados = {
-            titulo: "",
-            preco: 0,
-            area: 0,
-            quartos: 0,
-            endereco: "",
-            link: link
-          };
+            anuncios.push(dados);
+            console.log(`  ✅ ${dados.titulo?.substring(0,40) || '?'} `);
+            console.log(`     R$ ${dados.preco} | ${dados.area}m² | ${dados.quartos}q`);
+            success = true;
+          } catch (err) {
+            console.warn(`  ⚠️ Tentativa ${attempt} falhou: ${err.message}`);
+            if (attempt === 2) console.error(`  ❌ Erro final: ${err.message}`);
+            else await new Promise(r => setTimeout(r, 2000 * attempt));
+          }
         }
-
-        anuncios.push(dados);
-        console.log(`  ✅ ${dados.titulo?.substring(0, 40) || "?"}`);
-        console.log(`     R$ ${dados.preco} | ${dados.area}m² | ${dados.quartos}q`);
-        
       } catch (err) {
         console.error(`  ❌ Erro: ${err.message}`);
       } finally {
         if (page) {
-          try {
-            await page.close();
-          } catch {}
+          try { await page.close(); } catch {}
         }
       }
     }

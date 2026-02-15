@@ -47,7 +47,7 @@ async function executarBusca() {
       const score = calcularPontuacao(imovel);
       console.log(`  ✅ Passou no filtro: ${imovel.titulo?.substring(0, 30)} (score: ${score})`);
 
-      if (score >= 5) { // Ajuste o threshold
+      if (score >= 3) { // Ajuste do threshold para 3 (mais permissivo)
         melhoresImoveis.push({ ...imovel, score });
 
         db.run(
