@@ -23,6 +23,11 @@ async function launchBrowserWithFallback() {
     const candidates = [
       process.env.CHROME_PATH,
       process.env.PUPPETEER_EXECUTABLE_PATH,
+      process.env.PUPPETEER_CACHE_DIR,
+      "/tmp/.cache/puppeteer",
+      "/opt/render/.cache/puppeteer",
+      "/root/.cache/puppeteer",
+      "/home/node/.cache/puppeteer",
       "/usr/bin/chromium-browser",
       "/usr/bin/chromium",
       "/usr/bin/google-chrome-stable",
