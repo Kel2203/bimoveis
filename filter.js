@@ -79,7 +79,6 @@ function isValid(imovel) {
     return false;
   }
 
-  // ❌ Não pode ser lançamento ou construção
   if (
     titulo.includes("lançamento") ||
     descricao.includes("lançamento") ||
@@ -87,16 +86,12 @@ function isValid(imovel) {
   )
     return false;
 
-  // 💰 Até 700k
   if (imovel.preco > 700000) return false;
 
-  // 📐 Mínimo 30m²
   if (imovel.area < 30) return false;
 
-  // 🛏 Pelo menos 1 quarto
   if (imovel.quartos < 1) return false;
 
-  // ✅ Passou em todos os critérios
   return true;
 }
 

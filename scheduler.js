@@ -52,14 +52,15 @@ async function executarBusca() {
 
         db.run(
           `INSERT OR IGNORE INTO imoveis 
-           (link, fonte, titulo, endereco, preco, area, quartos, score)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (link, fonte, titulo, endereco, preco, preco_anterior, area, quartos, score)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             imovel.link, 
             imovel.fonte,
             imovel.titulo,
             imovel.endereco,
             imovel.preco, 
+            imovel.preco_anterior || null,
             imovel.area,
             imovel.quartos,
             score

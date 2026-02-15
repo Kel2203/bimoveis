@@ -197,7 +197,7 @@ async function buscarImoveis() {
 
     console.log("🌐 Acessando OLX (lista) com otimizações...");
 
-    const listUrl = "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000";
+    const listUrl = "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000&sf=1&coe=1000&ipe=500&ss=30";
     let listLoaded = false;
     for (let attempt = 1; attempt <= 2 && !listLoaded; attempt++) {
       try {
@@ -261,17 +261,82 @@ async function buscarImoveis() {
                   titulo = og?.getAttribute('content') || document.title || "";
                 }
               const textoPagina = document.body.innerText || '';
-              const precoMatch = textoPagina.match(/R\$\s*[\d.,]+/);
-              const precoStr = precoMatch ? precoMatch[0] : '';
-              const preco = precoStr ? Number(precoStr.replace(/\D/g, '')) : 0;
+                // Tentar extrair preço atual e preço anterior (quando houver queda)
+                let preco = 0;
+                let preco_anterior = 0;
+
+                // 1) Elementos semânticos (classe comum OLX)
+                try {
+                  const currentEl = document.querySelector('h3.olx-adcard__price, h3[class*=price], .olx-price, .price');
+                  const oldEl = document.querySelector('p.olx-adcard__old-price, .old-price, .price-old');
+                  if (currentEl) {
+                    const curText = currentEl.innerText || currentEl.textContent || '';
+                    const m = curText.match(/R\$\s*[\d.,]+/);
+                    if (m) preco = Number(m[0].replace(/\D/g, ''));
+                  }
+                  if (oldEl) {
+                    const oldText = oldEl.innerText || oldEl.textContent || '';
+                    const mo = oldText.match(/R\$\s*[\d.,]+/);
+                    if (mo) preco_anterior = Number(mo[0].replace(/\D/g, ''));
+                  }
+                } catch (e) {
+                  // ignore DOM errors
+                }
+
+                // 2) Meta tags / JSON fallbacks
+                if (!preco) {
+                  const ogPrice = document.querySelector('meta[property="product:price:amount"]')?.content;
+                  if (ogPrice) preco = Number(String(ogPrice).replace(/\D/g, '')) || preco;
+                }
+
+                // 3) Fallback para regex no texto da página
+                if (!preco) {
+                  const precoMatch = textoPagina.match(/R\$\s*[\d.,]+/);
+                  const precoStr = precoMatch ? precoMatch[0] : '';
+                  preco = precoStr ? Number(precoStr.replace(/\D/g, '')) : 0;
+                }
               const areaMatch = textoPagina.match(/(\d+(?:[.,]\d+)?)\s*m²/);
               const area = areaMatch ? parseFloat(areaMatch[1].replace(',', '.')) : 0;
               const quartosMatch = textoPagina.match(/(\d+)\s*(?:quarto|dormitório|dorm|suíte|q)\s*(?:s)?/i);
               const quartos = quartosMatch ? Number(quartosMatch[1]) : 0;
               let endereco = '';
-              const enderecoMatch = textoPagina.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
-              if (enderecoMatch) endereco = enderecoMatch[1].trim();
-              return { titulo: titulo.trim(), preco, area, quartos, endereco, link: location.href };
+
+              // 1) Preferir elemento de localização se existir
+              try {
+                const locEl = document.querySelector('p.olx-adcard__location, .olx-adcard__location, .location');
+                if (locEl) {
+                  const locText = (locEl.innerText || locEl.textContent || '').trim();
+                  // Formatos possíveis: "Bairro, Cidade" ou "Cidade, Bairro" ou "Cidade - Bairro"
+                  let m = locText.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
+                  if (m) endereco = m[1].trim();
+                  else {
+                    m = locText.match(/São Paulo[,\-]\s*([A-Za-záéíóúàãõâêô\s]+)/i);
+                    if (m) endereco = m[1].trim();
+                    else {
+                      // se vier 'Bairro - Cidade' ou 'Cidade - Bairro'
+                      m = locText.match(/^([A-Za-záéíóúàãõâêô\s]+)\s*[\-–]\s*([A-Za-záéíóúàãõâêô\s]+)$/i);
+                      if (m) {
+                        // escolher a parte que não for 'São Paulo'
+                        if (/sao paulo/i.test(m[1])) endereco = m[2].trim();
+                        else endereco = m[1].trim();
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                // ignore
+              }
+
+              // 2) Fallback a partir do texto da página (manter compatibilidade anterior)
+              if (!endereco) {
+                const enderecoMatch = textoPagina.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
+                if (enderecoMatch) endereco = enderecoMatch[1].trim();
+                else {
+                  const enderecoMatch2 = textoPagina.match(/São Paulo[,\-]\s*([A-Za-záéíóúàãõâêô\s]+)/i);
+                  if (enderecoMatch2) endereco = enderecoMatch2[1].trim();
+                }
+              }
+              return { titulo: titulo.trim(), preco, preco_anterior: (typeof preco_anterior !== 'undefined' ? preco_anterior : 0), area, quartos, endereco, link: location.href };
             });
 
             anuncios.push(dados);
@@ -308,7 +373,5 @@ async function buscarImoveis() {
     }
   }
 }
-
-module.exports = { buscarImoveis };
 
 module.exports = { buscarImoveis };
