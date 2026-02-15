@@ -41,7 +41,10 @@ async function launchBrowserWithFallback() {
     }
 
     try {
-      if (!fs.existsSync(v)) return;
+      if (!fs.existsSync(v)) {
+        delete process.env[name];
+        return;
+      }
       const s = fs.statSync(v);
       if (s.isDirectory()) {
         const found = findExecutableInDir(v);
