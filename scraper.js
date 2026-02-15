@@ -3,6 +3,20 @@ const fs = require("fs");
 
 async function launchBrowserWithFallback() {
   const baseOptions = { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] };
+
+  // Sanitize env vars: sometimes CI/build pipelines set these to install commands
+  // (e.g. "npx puppeteer browsers install chrome") which Puppeteer will try
+  // to use as an executable path. Remove obviously-invalid values.
+  const sanitize = (name) => {
+    const v = process.env[name];
+    if (!v) return;
+    const lower = String(v).toLowerCase();
+    if (lower.includes("npx") || lower.includes("install") || /\s/.test(v)) {
+      delete process.env[name];
+    }
+  };
+  sanitize("PUPPETEER_EXECUTABLE_PATH");
+  sanitize("CHROME_PATH");
   try {
     return await puppeteer.launch(baseOptions);
   } catch (err) {
