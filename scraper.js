@@ -31,9 +31,41 @@ async function launchBrowserWithFallback() {
 
     for (const p of candidates) {
       try {
-        if (fs.existsSync(p)) {
-          return await puppeteer.launch({ ...baseOptions, executablePath: p });
+        if (!fs.existsSync(p)) continue;
+
+        const stat = fs.statSync(p);
+        let execPath = p;
+
+        // If candidate is a directory (cache dir), try to find the binary inside
+        if (stat.isDirectory()) {
+          const findExecutableInDir = (dir, depth = 0) => {
+            if (depth > 4) return null;
+            const entries = fs.readdirSync(dir);
+            for (const name of entries) {
+              const full = require("path").join(dir, name);
+              try {
+                const s = fs.statSync(full);
+                if (s.isFile()) {
+                  const base = name.toLowerCase();
+                  if (base === "chrome" || base === "chromium" || base.includes("google-chrome")) return full;
+                }
+                if (s.isDirectory()) {
+                  const found = findExecutableInDir(full, depth + 1);
+                  if (found) return found;
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+            return null;
+          };
+
+          const found = findExecutableInDir(p);
+          if (found) execPath = found;
+          else continue; // no executable inside this dir, try next candidate
         }
+
+        return await puppeteer.launch({ ...baseOptions, executablePath: execPath });
       } catch (e) {
         // ignore and try next
       }
