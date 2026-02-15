@@ -3,20 +3,59 @@ const fs = require("fs");
 
 async function launchBrowserWithFallback() {
   const baseOptions = { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] };
+  // Sanitize and resolve env vars that may point to install commands or cache dirs.
+  const findExecutableInDir = (dir, depth = 0) => {
+    if (depth > 5) return null;
+    try {
+      const entries = fs.readdirSync(dir);
+      for (const name of entries) {
+        const full = require("path").join(dir, name);
+        try {
+          const s = fs.statSync(full);
+          if (s.isFile()) {
+            const base = name.toLowerCase();
+            if (base === "chrome" || base === "chromium" || base.includes("google-chrome")) return full;
+          }
+          if (s.isDirectory()) {
+            const found = findExecutableInDir(full, depth + 1);
+            if (found) return found;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  };
 
-  // Sanitize env vars: sometimes CI/build pipelines set these to install commands
-  // (e.g. "npx puppeteer browsers install chrome") which Puppeteer will try
-  // to use as an executable path. Remove obviously-invalid values.
-  const sanitize = (name) => {
+  const resolveEnvExecutable = (name) => {
     const v = process.env[name];
     if (!v) return;
     const lower = String(v).toLowerCase();
+    // remove obvious install commands or multi-word values
     if (lower.includes("npx") || lower.includes("install") || /\s/.test(v)) {
+      delete process.env[name];
+      return;
+    }
+
+    try {
+      if (!fs.existsSync(v)) return;
+      const s = fs.statSync(v);
+      if (s.isDirectory()) {
+        const found = findExecutableInDir(v);
+        if (found) process.env[name] = found;
+        else delete process.env[name];
+      }
+      // if it's a file, leave it as-is
+    } catch (e) {
       delete process.env[name];
     }
   };
-  sanitize("PUPPETEER_EXECUTABLE_PATH");
-  sanitize("CHROME_PATH");
+
+  resolveEnvExecutable("PUPPETEER_EXECUTABLE_PATH");
+  resolveEnvExecutable("CHROME_PATH");
   try {
     return await puppeteer.launch(baseOptions);
   } catch (err) {
