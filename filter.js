@@ -22,12 +22,20 @@ function isValid(imovel) {
     "mauá",
     "carapicuíba",
     "franco da rocha",
+    "diadema",
+    "santo andré",
+    "são bernardo",
+    "taboão da serra",
+    "são caetano"
   ];
   const bairrosBons = [
+    "brooklin",
     "ipiranga",
     "mooca",
     "vila prudente",
     "saúde",
+    "liberdade",
+    "lapa",
     "santo amaro",
     "tatuapé",
     "vila mariana",
@@ -60,12 +68,16 @@ function isValid(imovel) {
   if (foraCapital.some(cidade => endereco.includes(cidade) || titulo.includes(cidade)))
     return false;
 
+  // ⚠️ Preferência por bairros bons, mas não obrigatório
+  // if (!bairrosBons.some(bairro => endereco.includes(bairro) || titulo.includes(bairro)))
+  //   return false;
 
-  if (!bairrosBons.some(bairro => endereco.includes(bairro) || titulo.includes(bairro)))
+  // ❌ Deve estar em São Paulo (capital)
+  // Relaxado: só checar se tiver endereco, não rejeitar se vazio
+  if (imovel.endereco && !imovel.endereco.toLowerCase().includes("são paulo")) {
+    // Mas se temos endereço e não menciona SP, rejeitar
     return false;
-  if (!imovel.endereco.toLowerCase().includes("são paulo")) return false;
-
-
+  }
 
   // ❌ Não pode ser lançamento ou construção
   if (
@@ -75,26 +87,16 @@ function isValid(imovel) {
   )
     return false;
 
-  // 💰 Até 300k
-  if (imovel.preco > 300000) return false;
+  // 💰 Até 700k
+  if (imovel.preco > 700000) return false;
 
-  // 📐 Pelo menos 40m²
+  // 📐 Mínimo 30m²
   if (imovel.area < 30) return false;
 
-  // 🛏 Pelo menos 2 quartos
+  // 🛏 Pelo menos 1 quarto
   if (imovel.quartos < 1) return false;
 
-  // 🌇 Precisa ter varanda
-  // if (!descricao.includes("varanda"))
-  //   return false;
-
-  // 🛡 Precisa ter portaria 24h
-  // if (
-  //   !descricao.includes("portaria 24") &&
-  //   !descricao.includes("portaria 24h")
-  // )
-  //   return false;
-
+  // ✅ Passou em todos os critérios
   return true;
 }
 

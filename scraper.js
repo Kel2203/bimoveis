@@ -2,7 +2,11 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 
 async function launchBrowserWithFallback() {
-  const baseOptions = { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] };
+  const baseOptions = { 
+    headless: true, 
+    protocolTimeout: 180000,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] 
+  };
   // Sanitize and resolve env vars that may point to install commands or cache dirs.
   const findExecutableInDir = (dir, depth = 0) => {
     if (depth > 5) return null;
@@ -172,86 +176,156 @@ async function launchBrowserWithFallback() {
 }
 
 async function buscarImoveis() {
-  const browser = await launchBrowserWithFallback();
+  let browser;
+  try {
+    browser = await launchBrowserWithFallback();
 
-  const pageLista = await browser.newPage();
+    const pageLista = await browser.newPage();
+    await pageLista.setDefaultNavigationTimeout(120000);
+    await pageLista.setDefaultTimeout(120000);
 
-  await pageLista.goto(
-    "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=300000",
-    { waitUntil: "networkidle2", timeout: 0 }
-  );
+    console.log("🌐 Acessando OLX...");
+    await pageLista.goto(
+      "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000",
+      { waitUntil: "networkidle2", timeout: 120000 }
+    );
 
-  // Espera anúncios aparecerem
-  await pageLista.waitForSelector('a[data-testid="adcard-link"]', {
-    timeout: 60000
-  });
-
-  const links = await pageLista.$$eval(
-    'a[data-testid="adcard-link"]',
-    els => els.map(el => el.href)
-  );
-
-  console.log(`📦 ${links.length} links coletados`);
-
-  const anuncios = [];
-
-  // Limitar para não ficar pesado
-  const primeirosLinks = links.slice(0, 20);
-
-  for (const link of primeirosLinks) {
+    // Espera anúncios aparecerem com timeout generoso
+    console.log("⏳ Aguardando anúncios aparecerem...");
     try {
-      const page = await browser.newPage();
-
-      await page.goto(link, {
-        waitUntil: "networkidle2",
-        timeout: 0
+      await pageLista.waitForSelector('a[data-testid="adcard-link"]', {
+        timeout: 90000
       });
+    } catch (e) {
+      console.warn("⚠️ Timeout ao aguardar seletores, tentando mesmo assim...");
+    }
 
-     const dados = await page.evaluate(() => {
-  const titulo = document.querySelector("h1")?.innerText || "";
+    const links = await pageLista.$$eval(
+      'a[data-testid="adcard-link"]',
+      els => els.map(el => el.href)
+    ).catch(() => []);
 
-  const textoPagina = document.body.innerText;
+    console.log(`📦 ${links.length} links coletados`);
 
-  // PREÇO (ex: R$ 280.000)
-  const precoMatch = textoPagina.match(/R\$\s?[\d\.]+/);
-  const preco = precoMatch
-    ? Number(precoMatch[0].replace(/\D/g, ""))
-    : 0;
+    const anuncios = [];
 
-  // ÁREA (ex: 42 m²)
-  const areaMatch = textoPagina.match(/(\d+)\s?m²/);
-  const area = areaMatch ? Number(areaMatch[1]) : 0;
+    // Expandido para 20 links
+    const primeirosLinks = links.slice(0, 20);
 
-  // QUARTOS (ex: 2 quartos)
-  const quartosMatch = textoPagina.match(/(\d+)\s?quartos?/i);
-  const quartos = quartosMatch ? Number(quartosMatch[1]) : 0;
+    for (const link of primeirosLinks) {
+      console.log(`\n  📄 Link ${primeirosLinks.indexOf(link) + 1}/${primeirosLinks.length}`);
+      let page;
+      try {
+        page = await browser.newPage();
+        await page.setDefaultNavigationTimeout(30000);
+        await page.setDefaultTimeout(30000);
 
-  // ENDEREÇO (tenta capturar bairro)
-  const enderecoMatch = textoPagina.match(/São Paulo|Ipiranga|Jaraguá|Socorro/i);
-  const endereco = enderecoMatch ? enderecoMatch[0] : "";
+        console.log(`  ⏳ Navegando...`);
+        await page.goto(link, {
+          waitUntil: "networkidle2",
+          timeout: 30000
+        });
+        console.log(`  ✅ Página carregada`);
 
-  return {
-    titulo,
-    preco,
-    area,
-    quartos,
-    endereco,
-    link: location.href
-  };
-});
+        console.log(`  🔍 Extraindo dados...`);
+        let dados = null;
+        try {
+          dados = await page.evaluate(() => {
+            const titulo = document.querySelector("h1")?.innerText || "";
+            const textoPagina = document.body.innerText;
 
+            // PREÇO (ex: R$ 280.000 ou 280.000,00)
+            const precoMatch = textoPagina.match(/R\$\s*[\d.,]+/);
+            const precoStr = precoMatch ? precoMatch[0] : "";
+            const preco = precoStr ? Number(precoStr.replace(/\D/g, "")) : 0;
 
-      anuncios.push(dados);
-      await page.close();
-    } catch (err) {
-      console.log("⚠️ Erro em anúncio, pulando...");
+            // ÁREA (ex: 42 m² ou 42m²)
+            const areaMatch = textoPagina.match(/(\d+(?:[.,]\d+)?)\s*m²/);
+            const area = areaMatch ? parseFloat(areaMatch[1].replace(",", ".")) : 0;
+
+            // QUARTOS (ex: 2 quartos, 2 quarto, 2q, 3 suítes, 2 dormitórios)
+            const quartosMatch = textoPagina.match(/(\d+)\s*(?:quarto|suíte|suite|dormitório|dorm|q)\s*(?:s)?/i);
+            const quartos = quartosMatch ? Number(quartosMatch[1]) : 0;
+
+            // ENDEREÇO - tenta múltiplos padrões
+            let endereco = "";
+            
+            // Procura por padrão "Bairro, São Paulo"
+            const enderecoMatch = textoPagina.match(/([A-Za-záéíóúàãõâêô\s]+),\s*São Paulo/i);
+            if (enderecoMatch) {
+              endereco = enderecoMatch[1].trim();
+            } else {
+              // Alternativa: procura qualquer menção a bairros conhecidos
+              const bairrosComuns = [
+                "Ipiranga", "Mooca", "Vila Prudente", "Saúde", "Santo Amaro", 
+                "Tatuapé", "Vila Mariana", "Lapa", "Liberdade", "Cambuci",
+                "Sacomã", "Indianópolis", "Vila Clementino", "Vila Mascote",
+                "Interlagos", "Vila Carrão", "Vila Formosa", "Vila Matilde",
+                "Vila Olímpia", "Vila Madalena", "Vila Leopoldina", "Vila Romana",
+                "Tatuíba", "Bosque da Saúde", "Consolação", "Bela Vista", "Centro",
+                "Belém", "Brás", "Água Branca", "Pompéia", "Brooklin Paulista",
+                "Jardim Paulista", "Itaim Bibi", "Vila Clementino", "Cursino"
+              ];
+              for (const bairro of bairrosComuns) {
+                if (textoPagina.toLowerCase().includes(bairro.toLowerCase())) {
+                  endereco = bairro;
+                  break;
+                }
+              }
+            }
+
+            return {
+              titulo: titulo.trim(),
+              preco,
+              area,
+              quartos,
+              endereco,
+              link: location.href
+            };
+          });
+        } catch (evalErr) {
+          console.error(`    ⛔ Erro ao extrair: ${evalErr.message}`);
+          dados = {
+            titulo: "",
+            preco: 0,
+            area: 0,
+            quartos: 0,
+            endereco: "",
+            link: link
+          };
+        }
+
+        anuncios.push(dados);
+        console.log(`  ✅ ${dados.titulo?.substring(0, 40) || "?"}`);
+        console.log(`     R$ ${dados.preco} | ${dados.area}m² | ${dados.quartos}q`);
+        
+      } catch (err) {
+        console.error(`  ❌ Erro: ${err.message}`);
+      } finally {
+        if (page) {
+          try {
+            await page.close();
+          } catch {}
+        }
+      }
+    }
+
+    console.log(`\n✅ Total extraído: ${anuncios.length}`);
+    return anuncios;
+  } catch (err) {
+    console.error("❌ Erro crítico ao buscar imóveis OLX:", err.message);
+    return [];
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.error("⚠️ Erro ao fechar browser:", e.message);
+      }
     }
   }
-
-  await browser.close();
-
-  console.log(`✅ ${anuncios.length} imóveis encontrados`);
-  return anuncios;
 }
+
+module.exports = { buscarImoveis };
 
 module.exports = { buscarImoveis };

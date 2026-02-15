@@ -7,7 +7,7 @@ function calcularPontuacao(imovel) {
 
   // 💰 Preço
   if (imovel.preco <= 300000) pontos += 3;
-  if (imovel.preco <= 270000) pontos += 1; // super oportunidade
+  if (imovel.preco <= 270000) pontos += 1; 
 
   // 🛏 Quartos
   if (imovel.quartos >= 2) pontos += 2;
@@ -18,7 +18,7 @@ function calcularPontuacao(imovel) {
   if (imovel.area >= 45) pontos += 1;
   if (imovel.area >= 50) pontos += 2;
 
-  // 🌇 Varanda
+  // Varanda
   if (descricao.includes("varanda")) pontos += 2;
 
   // 🛡 Portaria 24h
@@ -30,12 +30,15 @@ function calcularPontuacao(imovel) {
   // 📍 Bairros estratégicos (custo-benefício SP)
   const bairrosBons = [
     "ipiranga",
+    "brooklin",
     "mooca",
     "vila prudente",
     "saúde",
     "santo amaro",
     "tatuapé",
     "vila mariana",
+    "lapa",
+    "liberdade",
     "cambuci",
     "sacomã",
     "vila gumercindo",
@@ -60,10 +63,9 @@ function calcularPontuacao(imovel) {
     "vila clementino"
   ];
 
-  if (bairrosBons.some(b => endereco.includes(b)|| titulo.includes(b)))
+  if (bairrosBons.some(b => endereco.includes(b) || titulo.includes(b)))
     pontos += 3;
 
-  // ❌ Penalizações
   const foraCapital = [
     "suzano",
     "cotia",
@@ -78,7 +80,8 @@ function calcularPontuacao(imovel) {
     "taboão da serra",
     "mauá",
     "carapicuíba",
-    "franco da rocha"
+    "franco da rocha",
+    "diadema"
   ];
 
   if (foraCapital.some(c => endereco.includes(c)))
