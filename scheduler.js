@@ -38,14 +38,56 @@ async function executarBusca() {
         if (!imovel.preco) motivo.push("sem preço");
         if (!imovel.area) motivo.push("sem área");
         if (!imovel.endereco) motivo.push("sem endereço");
-        if (imovel.preco > 700000) motivo.push(`preço alto (${imovel.preco})`);
+        if (imovel.quartos === undefined) motivo.push("sem info de quartos");
+        if (imovel.titulo && (imovel.titulo.toLowerCase().includes("lançamento") || imovel.descricao?.toLowerCase().includes("lançamento") || imovel.descricao?.toLowerCase().includes("em construção"))) {
+          motivo.push("lançamento/em construção");
+        }
+        if(imovel.endereco && !imovel.endereco.toLowerCase().includes("são paulo")) motivo.push("fora de SP");
+        if(imovel.endereco || imovel.titulo && [  "brooklin",
+    "ipiranga",
+    "mooca",
+    "vila prudente",
+    "saúde",
+    "liberdade",
+    "lapa",
+    "santo amaro",
+    "tatuapé",
+    "vila mariana",
+    "cambuci",
+    "sacomã",
+    "vila gumercindo",
+    "jabaquara",
+    "saúde",
+    "indianópolis",
+    "vila clementino",
+    "vila mascote",
+    "vila andrade",
+    "vila do sul",
+    "vila guarani",
+    "vila santa catarina",
+    "vila das mercês",
+    "vila mariana",
+    "vila nova conceição",
+    "vila olímpia",
+    "vila madalena",
+    "vila leopoldina",
+    "vila romana",
+    "vila madalena",
+    "interlagos",
+    "vila carrão",
+    "vila formosa",
+    "vila matilde",
+    "vila clementino"].some(bairro => imovel.endereco.toLowerCase().includes(bairro) || imovel.titulo.toLowerCase().includes(bairro))) {
+          motivo.push("bairro fora da zona desejada");
+        }
+        if (imovel.preco > 400000) motivo.push(`preço alto (${imovel.preco})`);
         if (imovel.area < 30) motivo.push(`área pequena (${imovel.area}m²)`);
-        console.debug(`  ⛔ Descartado: ${imovel.titulo?.substring(0, 30) || "?"} - ${motivo.join(", ")}`);
+        console.debug(`  ⛔ Descartado: ${imovel.titulo?.substring(0, 60) || "?"} - ${motivo.join(", ")}`);
         continue;
       }
 
       const score = calcularPontuacao(imovel);
-      console.log(`  ✅ Passou no filtro: ${imovel.titulo?.substring(0, 30)} (score: ${score})`);
+      console.log(`  ✅ Passou no filtro: ${imovel.titulo?.substring(0, 60)} (score: ${score})`);
 
       if (score >= 3) { // Ajuste do threshold para 3 (mais permissivo)
         melhoresImoveis.push({ ...imovel, score });

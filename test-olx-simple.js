@@ -16,7 +16,7 @@ async function testOLXSimple() {
 
     console.log("Acessando OLX...");
     await page.goto(
-      "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000",
+      "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=400000",
       { waitUntil: "networkidle2", timeout: 60000 }
     );
 

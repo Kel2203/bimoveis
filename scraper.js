@@ -197,7 +197,7 @@ async function buscarImoveis() {
 
     console.log("🌐 Acessando OLX (lista) com otimizações...");
 
-    const listUrl = "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=700000&sf=1&coe=1000&ipe=500&ss=30";
+    const listUrl = "https://www.olx.com.br/imoveis/venda/estado-sp/sao-paulo-e-regiao?pe=400000&sf=1&coe=1000&ipe=500&ss=30";
     let listLoaded = false;
     for (let attempt = 1; attempt <= 2 && !listLoaded; attempt++) {
       try {
@@ -340,8 +340,8 @@ async function buscarImoveis() {
             });
 
             anuncios.push(dados);
-            console.log(`  ✅ ${dados.titulo?.substring(0,40) || '?'} `);
-            console.log(`     R$ ${dados.preco} | ${dados.area}m² | ${dados.quartos}q`);
+            console.log(`  ✅ ${dados.titulo?.substring(0,60) || '?'} `);
+            console.log(`     R$ ${dados.preco} | ${dados.area}m² | ${dados.quartos}q | Endereço: ${dados.endereco || 'N/A'}`);
             success = true;
           } catch (err) {
             console.warn(`  ⚠️ Tentativa ${attempt} falhou: ${err.message}`);
